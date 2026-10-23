@@ -1,0 +1,60 @@
+
+services:
+  db:
+    image: postgres:18-bookworm #이미지 이름 수정됨
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "5433:5432"
+    volumes:
+      - realive_postgres18_data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./RealBE-refactor/RealBE
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./RealBE-refactor/RealBE/.env.properties
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-realive}
+      DB_USERNAME: ${POSTGRES_USER:-realive_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      DB_DRIVER: org.postgresql.Driver
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./RealBE-refactor/RealBE/.env.properties:/app/.env.properties:ro
+      - ./RealBE-refactor/RealBE/uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  
+  frontend:
+    build:
+      context: ./RealFE-refactor/RealFE
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./RealFE-refactor/RealFE/.env
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080/api
+      NEXT_PUBLIC_API_ROOT_URL: http://localhost:8080
+    depends_on:
+      - backend
+
+volumes:
+  realive_postgres18_data:
