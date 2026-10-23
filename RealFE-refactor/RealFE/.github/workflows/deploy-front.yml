@@ -1,0 +1,42 @@
+name: Deploy Frontend to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: SCP source code to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_KEY }}
+          port: 22
+          source: "."  # 전체 프로젝트 복사 (또는 front 디렉토리만)
+          target: "/home/ec2-user/realive-front"
+
+      - name: SSH into EC2 and build & restart
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_KEY }}
+          port: 22
+          script: |
+            cd /home/ec2-user/realive-front
+            NODE_ENV=production npm install
+            NODE_ENV=production npm run build
+            pm2 restart realive-front || pm2 start "npm run start" --name realive-front

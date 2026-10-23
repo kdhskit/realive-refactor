@@ -1,0 +1,42 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches: [ "main" ]  # main 브랜치 푸시 시 배포
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build with Gradle
+        run: ./gradlew clean build -x test
+
+      - name: Copy jar to EC2
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          source: build/libs/realive-0.0.1-SNAPSHOT.jar
+          target: ~/realive/
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            pkill -f 'realive-0.0.1-SNAPSHOT.jar' || echo "not running"
+            nohup java -Dspring.config.location=file:/home/ec2-user/.env.properties -jar ~/realive/realive-0.0.1-SNAPSHOT.jar > ~/realive/log.txt 2>&1 &  disown
+
